@@ -6,6 +6,7 @@ from fastapi import (
     Body,
     BackgroundTasks,
     Request,
+    UploadFile
 )
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -49,7 +50,7 @@ class WebhookBody(BaseModel):
 
 
 def process(
-    url: str,
+    audio: bytes,
     task: str,
     language: str,
     batch_size: int,
@@ -67,7 +68,7 @@ def process(
         }
 
         outputs = pipe(
-            url,
+            audio,
             chunk_length_s=30,
             batch_size=batch_size,
             generate_kwargs=generate_kwargs,
@@ -77,7 +78,7 @@ def process(
         if diarise_audio is True:
             speakers_transcript = diarize(
                 hf_token,
-                url,
+                audio,
                 outputs,
             )
             outputs["speakers"] = speakers_transcript
@@ -123,8 +124,8 @@ async def admin_key_auth_check(request: Request, call_next):
 
 
 @app.post("/")
-def root(
-    url: str = Body(),
+async def root(
+    audio_file: UploadFile,
     task: str = Body(default="transcribe", enum=["transcribe", "translate"]),
     language: str = Body(default="None"),
     batch_size: int = Body(default=64),
@@ -136,9 +137,6 @@ def root(
     is_async: bool = Body(default=False),
     managed_task_id: str | None = Body(default=None),
 ):
-    if url.lower().startswith("http") is False:
-        raise HTTPException(status_code=400, detail="Invalid URL")
-
     if diarise_audio is True and hf_token is None:
         raise HTTPException(status_code=500, detail="Missing Hugging Face Token")
 
@@ -149,6 +147,7 @@ def root(
 
     task_id = managed_task_id if managed_task_id is not None else str(uuid.uuid4())
 
+    audio = await audio_file.read()
     try:
         resp = {}
         if is_async is True:
@@ -156,7 +155,7 @@ def root(
                 loop.run_in_executor(
                     None,
                     process,
-                    url,
+                    audio,
                     task,
                     language,
                     batch_size,
@@ -175,7 +174,7 @@ def root(
         else:
             running_tasks[task_id] = None
             outputs = process(
-                url,
+                audio,
                 task,
                 language,
                 batch_size,
