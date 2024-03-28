@@ -1,18 +1,11 @@
 
-# https://fly.io/docs/reference/configuration
-
-app = 'insanely-fast-whisper-api' # Replace with your app name
-primary_region = 'sjc'
-
-[build]
-image = 'yoeven/insanely-fast-whisper-api:latest'
-## Remove the line above to rebuild the image from the Dockerfile
+app = 'justrecap-whisper-api'
+primary_region = 'ams'
 
 [[mounts]]
 source = 'data'
 destination = '/root/.cache'
 initial_size = '30gb'
-
 
 [http_service]
 internal_port = 9000
